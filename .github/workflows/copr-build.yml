@@ -90,12 +90,16 @@ jobs:
           set -eu
           # bash -n, not sh -n: every script here is bash (arrays, process
           # substitution), and /bin/sh is dash on the runners
-          for f in pkgs/*/*.sh; do
-            [ -e "$f" ] || continue
+          shopt -s nullglob
+          scripts=(pkgs/*/*.sh)
+          for f in "${scripts[@]}"; do
             bash -n "$f"
           done
-          # the shellcheck binary ships preinstalled on the runners
-          shellcheck -S warning pkgs/*/*.sh
+          # the shellcheck binary ships preinstalled on the runners; a repo
+          # with no helper scripts lints nothing (nullglob, not a literal glob)
+          if [ "${#scripts[@]}" -gt 0 ]; then
+            shellcheck -S warning "${scripts[@]}"
+          fi
       - name: Python syntax
         run: python3 -m py_compile ci/*.py ci/sweep/*.py tools/texlive-splitter/*.py
       - name: Registry consistency + build plan
