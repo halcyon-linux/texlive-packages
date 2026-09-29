@@ -206,16 +206,21 @@ jobs:
               for p in $COPR_PROJECTS; do
                 grp=${p#*/}
                 echo "::group::repoclosure fc$rv ($grp) attempt $attempt"
-                if dnf -q --releasever=$rv repoclosure \
-                     --check "copr:copr.fedorainfracloud.org:aahsnr-work:$grp" \
-                     --setopt=fedora.excludepkgs="$SHADOW" \
-                     --setopt=updates.excludepkgs="$SHADOW" \
-                     --newest \
-                  && dnf -q --releasever=$rv repoclosure \
-                     --check "copr:copr.fedorainfracloud.org:aahsnr-work:$grp" \
-                     --setopt=fedora.excludepkgs="$SHADOW" \
-                     --setopt=updates.excludepkgs="$SHADOW" \
-                     --newest --best; then
+                # Per-repo mode: the texlive group repos pair Fedora's engines
+                # (texlive-luatex, texlive-xetex — SAME package names at a
+                # higher epoch, carrying the real binaries) with the epoch-0
+                # data groups. --newest/--best prune the pool per name and
+                # would drop one half of that pair (either the engine needed
+                # for /usr/bin/* file deps or the data copy the snapshot pins
+                # need), so the texlive check runs plain and without the
+                # shadow exclusion — the exact-EQ snapshot pins are the skew
+                # guard there.
+                args=(--check "copr:copr.fedorainfracloud.org:aahsnr-work:$grp")
+                if [ "$grp" != texlive-packages ]; then
+                  args+=(--setopt "fedora.excludepkgs=$SHADOW" --setopt "updates.excludepkgs=$SHADOW" --newest)
+                fi
+                if dnf -q --releasever=$rv repoclosure "${args[@]}" \
+                  && dnf -q --releasever=$rv repoclosure "${args[@]}" --best; then
                   echo "fc$rv $grp: closed"
                 else
                   echo "fc$rv $grp: UNRESOLVED DEPENDENCIES"
