@@ -181,6 +181,20 @@ jobs:
             # post-cascade state before judging it
             for p in $COPR_PROJECTS; do copr-cli regenerate-repos "$p"; done
           fi
+          # The Copr drop-ins are priority=1 and shadow Fedora for every name
+          # they build. dnf5's --newest/--best prune the pool to the newest
+          # package per name BEFORE matching, so a same-name Fedora package
+          # with a higher epoch (Fedora 44's texlive-latex/context/pstricks
+          # are epoch 12) shadows the epoch-0 Copr providers and turns their
+          # inter-group version pins into false unresolved deps. A consumer
+          # never sees this: priority=1 wins, and an epoch-0 pin can only
+          # match an epoch-0 provider anyway. Mirror that consumer truth by
+          # excluding every Copr-shadowed name from the Fedora repos here.
+          SHADOW=""
+          for p in base-pkgs cli-tools applications fonts texlive-packages linux-p03; do
+            SHADOW="$SHADOW,$(copr-cli list-package-names "aahsnr-work/$p" | paste -sd, -)"
+          done
+          SHADOW="$(printf '%s' "$SHADOW" | sed 's/^,//;s/,\+/,/g')"
           attempt=0; max=6
           while :; do
             attempt=$((attempt+1))
@@ -194,9 +208,13 @@ jobs:
                 echo "::group::repoclosure fc$rv ($grp) attempt $attempt"
                 if dnf -q --releasever=$rv repoclosure \
                      --check "copr:copr.fedorainfracloud.org:aahsnr-work:$grp" \
+                     --setopt=fedora.excludepkgs="$SHADOW" \
+                     --setopt=updates.excludepkgs="$SHADOW" \
                      --newest \
                   && dnf -q --releasever=$rv repoclosure \
                      --check "copr:copr.fedorainfracloud.org:aahsnr-work:$grp" \
+                     --setopt=fedora.excludepkgs="$SHADOW" \
+                     --setopt=updates.excludepkgs="$SHADOW" \
                      --newest --best; then
                   echo "fc$rv $grp: closed"
                 else
