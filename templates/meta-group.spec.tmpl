@@ -1,0 +1,18 @@
+Name:           texlive-<group>
+# tlnet-archive snapshot date YYYYMMDD (comments on a tag line become part of
+# the value — keep them on their own line)
+Version:        20260901
+Release:        1%{?dist}
+Summary:        TeX Live <group> collection
+License:        GPL-1.0-or-later
+BuildArch:      noarch
+Requires:       texlive-basic
+Requires:       texlive-<dep-group>
+%description
+TeX Live <group> collection of the <snapshot-date> snapshot.
+%files
+# filled in per generated group (see tools/texlive-splitter/splitter.py,
+# which generates its own texlive-texmf.spec with -n subpackages)
+%changelog
+* <date> halcyon-autoupdate - 20260901-1
+- regenerated from tlnet-archive <snapshot-date>

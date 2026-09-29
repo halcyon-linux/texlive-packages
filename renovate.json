@@ -1,0 +1,54 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:best-practices"
+  ],
+  "timezone": "Asia/Dhaka",
+  "schedule": [
+    "on monday"
+  ],
+  "labels": [
+    "dependencies",
+    "github-actions"
+  ],
+  "commitMessagePrefix": "chore(deps):",
+  "packageRules": [
+    {
+      "description": "Group every GitHub Actions update into one weekly PR",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "groupName": "github-actions"
+    },
+    {
+      "description": "Delay brand-new action releases by a week (supply-chain)",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "minimumReleaseAge": "7d"
+    },
+    {
+      "description": "Automerge non-major action updates",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "digest",
+        "pin"
+      ],
+      "automerge": true
+    },
+    {
+      "description": "Ignore the self-built CI image tag",
+      "matchManagers": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "ghcr.io/aahsnr-work/halcyon-builder"
+      ],
+      "enabled": false
+    }
+  ]
+}

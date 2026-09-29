@@ -1,0 +1,32 @@
+# Written from templates/source-build.spec.tmpl.
+# Sources: use full URLs in Source* entries — the CI submit job fetches them
+# with spectool at SRPM-build time; keep downloads out of %prep (read files
+# from %{_sourcedir} or %setup -a 0).
+# Use an explicit Release: and a written %changelog (no rpmautospec — this
+# repo matches terra's spec conventions).
+# Registration: add the package to ci/packages.toml (batch + [pkg.updates]
+# sweep feed) — a package without an entry is never built.
+Name:           <pkg>
+Version:        0.1.0
+Release:        1%{?dist}
+Summary:        <one-line summary>
+License:        <SPDX>
+URL:            https://github.com/<owner>/<repo>
+Source0:        %{url}/archive/refs/tags/v%{version}/<repo>-%{version}.tar.gz
+BuildRequires:  gcc
+BuildRequires:  make
+%description
+%{summary}.
+%prep
+%autosetup -p1
+%build
+%make_build
+%install
+%make_install PREFIX=%{_prefix}
+%files
+%license LICENSE
+%doc README.md
+%{_bindir}/<pkg>
+%changelog
+* Wed Sep 23 2026 halcyon-autoupdate <aahsnr041@proton.me> - 0.1.0-1
+- initial packaging from templates/source-build.spec.tmpl

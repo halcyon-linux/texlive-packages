@@ -1,0 +1,23 @@
+# local build outputs (rpmbuild -bs scratch, copr-build smoke tests)
+anda-build/
+_srpms/
+tmp/
+.mimosa/
+# local work artefacts
+.obsidian/
+TaskNotes/
+*.tar.gz
+*.tar.bz2
+*.rpm
+*.zst
+__pycache__/
+# texlive-pkg tlpdb fetch cache
+.cache/
+
+# osc build scratch (tools/obs-local.sh)
+_buildconfig-*
+_buildinfo-*.xml
+
+# ZCode session artifacts
+.zcode/
+.zcodeignore

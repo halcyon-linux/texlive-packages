@@ -1,0 +1,113 @@
+# texlive-update — biweekly rolling TeX Live snapshot (the per-group split).
+#
+# The texlive-<group> packages (39 collection groups + texlive-meta, batch 5)
+# are GENERATED specs owned by this workflow — the Monday update.yml sweep
+# never touches them (no updates tables in the registry). Every two weeks:
+#
+#   1. tools/texlive-splitter/roll.py probes the newest daily snapshot of the
+#      rolling tlnet archive (texlive.info/tlnet-archive — daily snapshots of
+#      the live TeX Live repository), fetches its texlive.tlpdb and
+#      regenerates all 40 specs from it (scheme-full, no docs).
+#   2. Specs are written only when their bytes change; if the snapshot did
+#      not move, the run is a no-op and nothing is committed.
+#   3. A changed roll is committed and pushed straight to main; the push
+#      makes copr-build.yml rebuild the changed texlive dirs as the batch-5
+#      wave. Copr keeps the last good build per package, so a bad roll
+#      never replaces the published set — revert the roll commit to go back.
+#
+# The output of roll.py is a pure function of the snapshot date (no
+# wall-clock in the rendered specs), which is what makes the commit step
+# safe to run unconditionally after the generator.
+name: texlive-update
+
+on:
+  schedule:
+    # biweekly: Wednesdays 04:17 UTC on even ISO weeks. The first roll
+    # shipped the 20260925 snapshot (ISO week 40); flip the guard constant
+    # to 1 to shift the cadence by one week (a 53-week year shifts it once
+    # on its own).
+    - cron: "17 04 * * 3"
+  workflow_dispatch:
+    inputs:
+      snapshot:
+        description: "Force a snapshot date YYYYMMDD (empty = probe the newest)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: texlive-update
+  cancel-in-progress: false
+
+jobs:
+  roll:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SNAPSHOT: ${{ inputs.snapshot }}
+    steps:
+      - name: Workspace safe
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+      - name: Configure git
+        run: |
+          git config user.name "halcyon-autoupdate"
+          git config user.email "aahsnr041@proton.me"
+      - name: ISO-week parity guard
+        id: parity
+        if: github.event_name == 'schedule'
+        run: |
+          set -eu
+          # scheduled runs roll every second Wednesday; manual dispatches
+          # always roll
+          if [ $((10#$(date +%V) % 2)) -ne 0 ]; then
+            echo "ISO week $(date +%V) is odd — not a texlive roll week"
+            echo "roll=skip" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "ISO week $(date +%V) — rolling"
+          echo "roll=roll" >> "$GITHUB_OUTPUT"
+      - name: Roll the texlive group specs
+        # the guard ends only its own step — gate the real work on it
+        if: steps.parity.outputs.roll != 'skip'
+        run: |
+          set -euo pipefail
+          # word splitting on ROLL_ARGS is intended — it is a flag list
+          ROLL_ARGS=""
+          if [ -n "${SNAPSHOT}" ]; then ROLL_ARGS="--snapshot ${SNAPSHOT}"; fi
+          # shellcheck disable=SC2086
+          out=$(python3 tools/texlive-splitter/roll.py ${ROLL_ARGS})
+          echo "$out"
+          snapshot=$(sed -n 's/^snapshot: //p' <<<"$out")
+          [ -n "$snapshot" ] || { echo "roll.py printed no snapshot"; exit 1; }
+          echo "TL_SNAPSHOT=${snapshot}" >> "$GITHUB_ENV"
+      - name: Commit the roll
+        if: steps.parity.outputs.roll != 'skip'
+        run: |
+          set -eu
+          if [ -z "$(git status --porcelain -- pkgs/ ci/packages.toml)" ]; then
+            echo "unchanged: every spec already at this snapshot"
+            exit 0
+          fi
+          git add pkgs/ ci/packages.toml
+          git commit -m "texlive: roll to tlnet snapshot ${TL_SNAPSHOT}"
+          # main may have moved since checkout (sweep/manual push race):
+          # rebase and retry instead of failing the roll
+          for attempt in 1 2 3; do
+            if git fetch origin main && git rebase origin/main && git push origin HEAD:main; then
+              break
+            fi
+            git rebase --abort 2>/dev/null || true
+            if [ "$attempt" = 3 ]; then
+              echo "push failed after 3 rebase attempts"; exit 1
+            fi
+            echo "push race (attempt ${attempt}) — rebasing onto origin/main"
+          done
+          echo "rolled to ${TL_SNAPSHOT}"
+          # a GITHUB_TOKEN push does not trigger workflow runs — dispatch the
+          # cascade explicitly
+          GH_TOKEN="${{ github.token }}" gh workflow run copr-build.yml --ref main

@@ -1,0 +1,138 @@
+# update — upstream version sweep, chained to the cascade (replaces
+# anda-update.yml).
+#
+# Runs ci/sweep/sweep.py (the Python port of the 48 update.rhai scripts — the
+# anda migration). The sweeper edits specs in place and writes only real
+# changes; this workflow lands them:
+#
+#   mode=commit (default)  push `bump: <date> (<pkgs>)` straight to main —
+#                          the push makes copr-build.yml rebuild the changed
+#                          packages and every higher batch. Fully automatic:
+#                          upstream release -> spec bump -> Copr build -> repo
+#                          update, no human in the loop. A failed Copr build
+#                          leaves the published repo on the last good version,
+#                          so bad bumps self-heal.
+#   mode=pr                land the bumps on one bump/<date> branch and open a
+#                          single PR, like the anda era — set the UPDATE_MODE
+#                          repository variable (or the dispatch input) to opt
+#                          into the review gate.
+#
+# GITHUB_TOKEN feeds the sweeper's GitHub API calls (rate limits); it is only
+# ever sent to api.github.com.
+name: update
+
+on:
+  # two triggers, two purposes: the weekly cron is the floor (sweeps even in
+  # a week with no cascade), and the workflow_run chain sweeps right after
+  # every successful copr-build so fresh builds meet the newest upstream
+  # immediately. A bump's own cascade re-triggers the sweep once more; that
+  # second run finds nothing upstream and exits without committing, so the
+  # chain ends.
+  schedule:
+    - cron: "17 04 * * 1"
+  workflow_run:
+    workflows: [copr-build]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "How to land bumps (schedule runs use the UPDATE_MODE var, else commit)"
+        required: false
+        default: "commit"
+        type: choice
+        options: ["commit", "pr"]
+      pkg:
+        description: "Sweep only these packages (space separated); empty = all"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+concurrency:
+  group: update
+  cancel-in-progress: true
+
+jobs:
+  sweep:
+    # workflow_run fires for failed cascades too — sweep only after a
+    # successful one (a failed cascade published nothing new)
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    container:
+      image: ghcr.io/${{ github.repository_owner }}/halcyon-builder:f44
+    env:
+      MODE: ${{ inputs.mode || vars.UPDATE_MODE || 'commit' }}
+      PKGS: ${{ inputs.pkg }}
+    steps:
+      - name: Workspace safe
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+      - name: Configure git
+        run: |
+          git config user.name "halcyon-autoupdate"
+          git config user.email "aahsnr041@proton.me"
+      - name: Sweep upstream versions
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # word splitting on PKGS is intended — it is a package list
+          # shellcheck disable=SC2086
+          if [ -n "${PKGS:-}" ]; then
+            python3 ci/sweep/sweep.py --pkg $PKGS
+          else
+            python3 ci/sweep/sweep.py
+          fi
+      - name: Commit the bumps (mode=commit)
+        if: env.MODE == 'commit' && success()
+        run: |
+          set -eu
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "nothing to bump"
+            exit 0
+          fi
+          date_tag="$(date -u +%Y%m%d)"
+          pkgs="$(git status --porcelain -- pkgs/ | awk '{print $2}' | cut -d/ -f2 | sort -u | tr '\n' ' ')"
+          git add pkgs/
+          git commit -m "bump: ${date_tag} (${pkgs})"
+          # main may have moved since checkout (manual push race): rebase and
+          # retry instead of failing the daily sweep
+          for attempt in 1 2 3; do
+            if git fetch origin main && git rebase origin/main && git push origin HEAD:main; then
+              break
+            fi
+            git rebase --abort 2>/dev/null || true
+            if [ "$attempt" = 3 ]; then
+              echo "push failed after 3 rebase attempts"; exit 1
+            fi
+            echo "push race (attempt ${attempt}) — rebasing onto origin/main"
+          done
+          echo "bumped and pushed: ${pkgs}"
+          # a GITHUB_TOKEN push does not trigger workflow runs — dispatch the
+          # cascade explicitly
+          GH_TOKEN="${{ github.token }}" gh workflow run copr-build.yml --ref main
+      - name: Open a bump PR (mode=pr)
+        if: env.MODE == 'pr' && success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "nothing to bump"
+            exit 0
+          fi
+          date_tag="$(date -u +%Y%m%d)"
+          pkgs="$(git status --porcelain -- pkgs/ | awk '{print $2}' | cut -d/ -f2 | sort -u | tr '\n' ' ')"
+          git add pkgs/
+          git commit -m "bump: ${date_tag} (${pkgs})"
+          git checkout -B "bump/${date_tag}"
+          git push -u origin "bump/${date_tag}"
+          gh pr create --head "bump/${date_tag}" \
+            --title "chore(bump): upstream versions $(date -u +%Y-%m-%d)" \
+            --body "Automated by .github/workflows/update.yml (\`ci/sweep/sweep.py\`). Review the version transitions and merge — copr-build.yml then builds the changed packages and every package in a higher batch."
