@@ -40,6 +40,7 @@ on:
 
 permissions:
   contents: read
+  packages: read
 
 concurrency:
   group: copr-build-${{ github.ref }}
@@ -57,6 +58,33 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
+      - name: Wait for the builder image of this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          # builder-docker rebuilds the image on the same pushes that trigger
+          # this workflow (.github/builder/**); without this gate the submit
+          # jobs race it and some pull the stale image. When no builder-image
+          # run exists for this SHA the image inputs did not change and there
+          # is nothing to wait for.
+          for i in $(seq 1 60); do
+            run_id=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/builder-docker.yml/runs?head_sha=${{ github.sha }}&per_page=1" \
+              --jq '.workflow_runs[0].id // empty')
+            if [ -z "$run_id" ]; then
+              echo "no builder-image run for ${{ github.sha }} — image unchanged"
+              exit 0
+            fi
+            read -r status conclusion <<<"$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id" --jq '.status + " " + (.conclusion // "-")')"
+            if [ "$status" = completed ]; then
+              [ "$conclusion" = success ] || { echo "builder-image run $run_id: $conclusion"; exit 1; }
+              echo "builder-image run $run_id is green"
+              exit 0
+            fi
+            echo "builder-image run $run_id: $status; waiting ($i/60)"
+            sleep 20
+          done
+          echo "timed out waiting for the builder image"; exit 1
       - name: Shell syntax + lint (package helper scripts)
         run: |
           set -eu
@@ -174,7 +202,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     container:
-      image: ghcr.io/${{ github.repository_owner }}/halcyon-builder:f44
+      image: ghcr.io/halcyon-linux/texlive-packages-builder:f44
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ github.token }}
+
     steps:
       - name: Workspace safe
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
@@ -226,7 +258,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 330
     container:
-      image: ghcr.io/${{ github.repository_owner }}/halcyon-builder:f44
+      image: ghcr.io/halcyon-linux/texlive-packages-builder:f44
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ github.token }}
+
     steps:
       - name: Copr credentials
         if: needs.manifest.outputs.batch0 != ''
@@ -277,7 +313,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     container:
-      image: ghcr.io/${{ github.repository_owner }}/halcyon-builder:f44
+      image: ghcr.io/halcyon-linux/texlive-packages-builder:f44
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ github.token }}
+
     steps:
       - name: Workspace safe
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
@@ -329,7 +369,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 330
     container:
-      image: ghcr.io/${{ github.repository_owner }}/halcyon-builder:f44
+      image: ghcr.io/halcyon-linux/texlive-packages-builder:f44
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ github.token }}
+
     steps:
       - name: Copr credentials
         if: needs.manifest.outputs.batch1 != ''
@@ -378,7 +422,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     container:
-      image: ghcr.io/${{ github.repository_owner }}/halcyon-builder:f44
+      image: ghcr.io/halcyon-linux/texlive-packages-builder:f44
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ github.token }}
+
     steps:
       - name: Workspace safe
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
@@ -430,7 +478,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 330
     container:
-      image: ghcr.io/${{ github.repository_owner }}/halcyon-builder:f44
+      image: ghcr.io/halcyon-linux/texlive-packages-builder:f44
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ github.token }}
+
     steps:
       - name: Copr credentials
         if: needs.manifest.outputs.batch2 != ''
@@ -479,7 +531,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     container:
-      image: ghcr.io/${{ github.repository_owner }}/halcyon-builder:f44
+      image: ghcr.io/halcyon-linux/texlive-packages-builder:f44
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ github.token }}
+
     steps:
       - name: Workspace safe
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
@@ -531,7 +587,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 330
     container:
-      image: ghcr.io/${{ github.repository_owner }}/halcyon-builder:f44
+      image: ghcr.io/halcyon-linux/texlive-packages-builder:f44
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ github.token }}
+
     steps:
       - name: Copr credentials
         if: needs.manifest.outputs.batch3 != ''
@@ -583,7 +643,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     container:
-      image: ghcr.io/${{ github.repository_owner }}/halcyon-builder:f44
+      image: ghcr.io/halcyon-linux/texlive-packages-builder:f44
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ github.token }}
+
     steps:
       - name: Workspace safe
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
@@ -635,7 +699,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 330
     container:
-      image: ghcr.io/${{ github.repository_owner }}/halcyon-builder:f44
+      image: ghcr.io/halcyon-linux/texlive-packages-builder:f44
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ github.token }}
+
     steps:
       - name: Copr credentials
         if: needs.manifest.outputs.batch4 != ''
@@ -689,7 +757,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     container:
-      image: ghcr.io/${{ github.repository_owner }}/halcyon-builder:f44
+      image: ghcr.io/halcyon-linux/texlive-packages-builder:f44
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ github.token }}
+
     steps:
       - name: Workspace safe
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
@@ -739,7 +811,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 330
     container:
-      image: ghcr.io/${{ github.repository_owner }}/halcyon-builder:f44
+      image: ghcr.io/halcyon-linux/texlive-packages-builder:f44
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ github.token }}
+
     steps:
       - name: Copr credentials
         if: needs.manifest.outputs.batch5 != ''

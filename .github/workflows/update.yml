@@ -48,6 +48,7 @@ on:
 
 permissions:
   contents: write
+  packages: read
   pull-requests: write
   actions: write
 
@@ -63,7 +64,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     container:
-      image: ghcr.io/${{ github.repository_owner }}/halcyon-builder:f44
+      image: ghcr.io/halcyon-linux/texlive-packages-builder:f44
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ github.token }}
+
     env:
       MODE: ${{ inputs.mode || vars.UPDATE_MODE || 'commit' }}
       PKGS: ${{ inputs.pkg }}

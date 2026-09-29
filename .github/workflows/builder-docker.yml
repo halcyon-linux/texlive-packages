@@ -1,0 +1,41 @@
+name: builder-image
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: builder-image
+  cancel-in-progress: false
+on:
+  push:
+    branches: [main]
+    paths: [".github/builder/**", ".github/workflows/builder-docker.yml"]
+  pull_request:
+    paths: [".github/builder/**", ".github/workflows/builder-docker.yml"]
+  workflow_dispatch:
+
+jobs:
+  build-push:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Log in to ghcr.io
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      # buildx with the docker-container driver — the default docker driver
+      # cannot export caches (cache-to: type=gha) and fails the build
+      - name: Set up buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      - name: Build and push
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: .
+          file: .github/builder/Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ghcr.io/halcyon-linux/texlive-packages-builder:f44
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

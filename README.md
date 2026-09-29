@@ -19,6 +19,10 @@ applications · fonts · texlive-packages · linux-p03.
 - `update.yml` — the upstream version sweep (`ci/sweep/sweep.py` over the
   registry's `[pkg.updates]` feeds), commits bumps straight to `main`.
 - `repoclosure.yml` — nightly (05:43 UTC) + post-cascade closure check of
+
+- `builder-docker.yml` — builds this repo's own CI job image and pushes
+  it to `ghcr.io/halcyon-linux/texlive-packages-builder:f44` (consumed by this
+  repo's build and sweep jobs).
   the published Copr repo against Fedora 44/45 (+ Terra and the
   lionheartp bootstrap repo).
 - `texlive-update.yml` — the biweekly roll (Wednesdays on even ISO weeks):
