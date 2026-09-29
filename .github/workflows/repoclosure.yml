@@ -112,6 +112,17 @@ jobs:
           EOF
           # the lionheartp bootstrap repo is part of the Copr buildroot; kitty's
           # shader-slang-devel resolves only through it (documented in its spec)
+          # the download.copr.fedorainfracloud.org CDN caches repomd.xml for
+          # up to an hour (observed during the 2026-09-29 fork migration: a
+          # forked project served its first publication while the source one
+          # was long gone). The closure check must judge the CURRENT state, so
+          # the Copr baseurls are rewritten to the Pulp content origin — the
+          # same tree download.copr redirects to, minus the caching edge.
+          # The checked-in consumer drop-ins keep the canonical URL.
+          sed -i 's|https://download.copr.fedorainfracloud.org/results/|https://packages.redhat.com/api/pulp-content/public-copr/|' \
+            /etc/yum.repos.d/base-pkgs.repo /etc/yum.repos.d/cli-tools.repo \
+            /etc/yum.repos.d/applications.repo /etc/yum.repos.d/fonts.repo \
+            /etc/yum.repos.d/texlive-packages.repo /etc/yum.repos.d/linux-p03.repo
           cat > /etc/yum.repos.d/lionheartp.repo <<'EOF'
           [lionheartp]
           name=Copr repo for Hyprland owned by LionHeartP
