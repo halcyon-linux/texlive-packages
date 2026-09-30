@@ -15,9 +15,9 @@
 # Rolled biweekly by texlive-update.yml; never swept (no [pkg.updates]
 # tables by design, so there is no update.yml in this repo).
 
-# --------------------------------------------------------------- desktops
+# --------------------------------------------------------------- groups
 
-# --- batch 0 ------------------------------------------------------------
+# --- batch 5 (all generated groups, one wave) ----------------------------
 [texlive-basic]
 batch = 5
 
