@@ -16,8 +16,6 @@ applications · fonts · texlive-packages · linux-p03.
   higher batch, wave-by-wave. Gated on the `CASCADE_ENABLED` repository
   variable (kill-switch; `workflow_dispatch` bypasses it). PRs validate
   only.
-- `update.yml` — the upstream version sweep (`ci/sweep/sweep.py` over the
-  registry's `[pkg.updates]` feeds), commits bumps straight to `main`.
 - `repoclosure.yml` — nightly (05:43 UTC) + post-cascade closure check of
 
 - `builder-docker.yml` — builds this repo's own CI job image and pushes

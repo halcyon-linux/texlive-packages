@@ -9,7 +9,7 @@
 # hyprland needing a newer lib than Fedora 44 has, a broken texlive group
 # pin, a bumped-away dependency.
 #
-# The repo drop-ins are the checked-in repo/<group>.repo files (the consumer
+# The repo drop-in is the checked-in repo/texlive-packages.repo (the consumer
 # files themselves — baseurl, gpgkey, priority=1), so the check sees exactly
 # what consumers see. --newest resolves against the newest packages only;
 # the second step adds --best (stricter: prefers the best candidate across
@@ -91,16 +91,14 @@ jobs:
       image: registry.fedoraproject.org/fedora:44
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - name: Install the repo drop-ins (all six group repos + Terra + lionheartp)
+      - name: Install the repo drop-in (this project's + Terra + lionheartp)
         run: |
           set -eu
-          # every group's consumer drop-in lives in repo/ — install them all so
-          # each per-repo closure check sees exactly what consumers see. (The
-          # halcyon-mirror.repo alternative is NOT installed: it proxies the
-          # core repo only and would double-enable the desktop packages.)
-          for f in base-pkgs cli-tools applications fonts texlive-packages linux-p03; do
-            cp "repo/$f.repo" /etc/yum.repos.d/
-          done
+          # this project's consumer drop-in lives in repo/ — install it so
+          # the closure check sees exactly what consumers see. (Sibling
+          # group repos are not installed: only cross-repo runtime deps
+          # would need them, and those resolve via Fedora here.)
+          cp "repo/texlive-packages.repo" /etc/yum.repos.d/
           cat > /etc/yum.repos.d/terra.repo <<'EOF'
           [terra]
           name=Terra
@@ -118,11 +116,9 @@ jobs:
           # was long gone). The closure check must judge the CURRENT state, so
           # the Copr baseurls are rewritten to the Pulp content origin — the
           # same tree download.copr redirects to, minus the caching edge.
-          # The checked-in consumer drop-ins keep the canonical URL.
+          # The checked-in consumer drop-in keeps the canonical URL.
           sed -i 's|https://download.copr.fedorainfracloud.org/results/|https://packages.redhat.com/api/pulp-content/public-copr/|' \
-            /etc/yum.repos.d/base-pkgs.repo /etc/yum.repos.d/cli-tools.repo \
-            /etc/yum.repos.d/applications.repo /etc/yum.repos.d/fonts.repo \
-            /etc/yum.repos.d/texlive-packages.repo /etc/yum.repos.d/linux-p03.repo
+            /etc/yum.repos.d/texlive-packages.repo
           cat > /etc/yum.repos.d/lionheartp.repo <<'EOF'
           [lionheartp]
           name=Copr repo for Hyprland owned by LionHeartP
@@ -190,11 +186,7 @@ jobs:
           # never sees this: priority=1 wins, and an epoch-0 pin can only
           # match an epoch-0 provider anyway. Mirror that consumer truth by
           # excluding every Copr-shadowed name from the Fedora repos here.
-          SHADOW=""
-          for p in base-pkgs cli-tools applications fonts texlive-packages linux-p03; do
-            SHADOW="$SHADOW,$(copr-cli list-package-names "aahsnr-work/$p" | paste -sd, -)"
-          done
-          SHADOW="$(printf '%s' "$SHADOW" | sed 's/^,//;s/,\+/,/g')"
+          SHADOW="$(copr-cli list-package-names "aahsnr-work/texlive-packages" | paste -sd, -)"
           attempt=0; max=6
           while :; do
             attempt=$((attempt+1))

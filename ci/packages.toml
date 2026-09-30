@@ -1,8 +1,8 @@
-# ci/packages.toml — the texlive-packages build registry + sweep-feed config.
+# ci/packages.toml — the texlive-packages build registry.
 #
-# Consumed by ci/matrix.py (build selection) and ci/sweep/sweep.py (version
-# sweep). One table per package; **a package without an entry is not built**.
-# The specs themselves live in pkgs/<pkg>/<pkg>.spec.
+# Consumed by ci/matrix.py (build selection). One table per package; **a
+# package without an entry is not built**. The specs themselves live in
+# pkgs/<pkg>/<pkg>.spec.
 #
 # Batches are dependency levels, not parallel groups within one job:
 # copr-build.yml submits the waves sequentially and waits for each wave's
@@ -10,31 +10,10 @@
 # to the project repo, so a package may rely on anything built in a lower
 # batch. Packages inside one batch must therefore never depend on each other.
 #
-# Build-time dependencies that Fedora 44 does not provide: glaze, hyprwire
-# and hyprtoolkit are packaged in THIS repo (ports of the lionheartp/Hyprland
-# Copr specs; the fourth input, wlroots, ships in Fedora 44 itself). The
-# lionheartp Copr stays configured on the Copr chroot only as a lowest-
-# priority bootstrap for fresh projects; once our own builds exist, the
-# project repo wins. Terra 44 is also configured there (anda-srpm-macros for
-# the rust specs). See notes/copr-setup.md.
-#
-# The optional [pkg.updates] table drives the daily sweep (update.yml):
-#   feed = "github-release"  + repo = "owner/name"   latest GitHub release tag
-#   feed = "github-tag"      + repo = "owner/name"   newest git tag
-#   feed = "custom"          + custom = "<name>"     ci/sweep/custom.py function
-# Packages without it (texlive rolling groups) are never swept.
-#
-# The optional `project = "<copr-project>"` field routes a package's
-# builds to that Copr project (default "halcyon", the desktop core).
-# matrix.py emits it as a build-matrix label; unknown projects fail
-# validation. Every project must own a disjoint set of packages.
-#
-# batch 0  roots: Fedora-only build deps and leaf tools/apps/wrappers
-# batch 1  first level: hyprlang, aquamarine, hyprgraphics, hyprwire, noctalia-greeter-git
-# batch 2  second level: hyprcursor, hyprland-qt-support, xdg-desktop-portal-hyprland, hyprtoolkit
-# batch 3  third level: hyprland-git, hyprland-guiutils, hyprpwcenter, hyprshutdown, kernel-p03, noctalia-git, onlyoffice-desktopeditors
-# batch 4  intentionally empty
-# batch 5  texlive rolling groups (40 generated packages)
+# All packages are batch 5: the GENERATED TeX Live groups (specs written by
+# tools/texlive-splitter from a tlnet snapshot — do not edit by hand).
+# Rolled biweekly by texlive-update.yml; never swept (no [pkg.updates]
+# tables by design, so there is no update.yml in this repo).
 
 # --------------------------------------------------------------- desktops
 
