@@ -117,8 +117,12 @@ LS_R_BLOCK = """\
 # kpathsea filename database — install-tl generated this manifest in the
 # old staging model; here it is derived from the fetched tree itself, in
 # mktexlsr's directory-blocked format (block per directory, entries under
-# it, every directory listed in its parent's block)
-( printf '%%%% ls-R -- filename database for kpathsea.\\n%%%% Run mktexlsr to regenerate.\\n'
+# it, every directory listed in its parent's block). The FIRST LINE must
+# be mktexlsr's exact magic string: mktexlsr refuses to overwrite an ls-R
+# whose header deviates ("no magic string, skipping") — the image's
+# texlive-formats step regenerates the database after the transaction and
+# would silently no-op otherwise.
+( printf '%%%% ls-R -- filename database for kpathsea; do not change this line.\\n%%%% Run mktexlsr to regenerate.\\n'
   cd staging/texmf-dist && find . -mindepth 1 | sed 's|^\\./||' | LC_ALL=C sort \\
   | awk -F/ '{ d="./"; for (i=1;i<NF;i++) d=d $i "/"; sub("/$", "", d); if (d!=p) { print d ":"; p=d } print $NF }'
 ) > staging/texmf-dist/ls-R
@@ -235,11 +239,21 @@ done
 # upstream scripts/wrappers carry pre-usrmerge shebangs; normalize like the
 # data groups do so rpm emits resolvable file dependencies
 find staging/bin -type f -exec sed -i '1s|^#!/bin/|#!/usr/bin/|' {{}} + 2>/dev/null || true
+# the TeXLive perl modules (TLUtils.pm & co.) live in the texlive.infra
+# DATA package's tlpkg/ — the platform tarballs only carry bin/. Without
+# them the fmtutil/updmap/tlmgr wrappers abort on `use TeXLive::TLUtils`.
+wget -q --retry-connrefused --waitretry=5 --tries=5 \\
+    -O raw/texlive.infra.tar.xz \\
+    "%{{_tl_archive_url}}/archive/texlive.infra.tar.xz"
+mkdir -p raw/texlive.infra staging/tlpkg
+tar -xJf raw/texlive.infra.tar.xz -C raw/texlive.infra
+if [ -d raw/texlive.infra/tlpkg ]; then
+    cp -a raw/texlive.infra/tlpkg/. staging/tlpkg/
+fi
 # the repository tlpdb tlmgr needs
 wget -q --retry-connrefused --waitretry=5 --tries=5 \\
     -O raw/texlive.tlpdb.xz \\
     "%{{_tl_archive_url}}/tlpkg/texlive.tlpdb.xz"
-mkdir -p staging/tlpkg
 xz -dc raw/texlive.tlpdb.xz > staging/tlpkg/texlive.tlpdb
 # pin tlmgr to this snapshot's repository (the archive URL is immutable)
 mkdir -p staging/texmf-config/tlmgr

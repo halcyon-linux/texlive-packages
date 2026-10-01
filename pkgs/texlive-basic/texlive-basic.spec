@@ -109,8 +109,12 @@ rm -rf staging/texmf-dist/doc
 # kpathsea filename database — install-tl generated this manifest in the
 # old staging model; here it is derived from the fetched tree itself, in
 # mktexlsr's directory-blocked format (block per directory, entries under
-# it, every directory listed in its parent's block)
-( printf '%%%% ls-R -- filename database for kpathsea.\n%%%% Run mktexlsr to regenerate.\n'
+# it, every directory listed in its parent's block). The FIRST LINE must
+# be mktexlsr's exact magic string: mktexlsr refuses to overwrite an ls-R
+# whose header deviates ("no magic string, skipping") — the image's
+# texlive-formats step regenerates the database after the transaction and
+# would silently no-op otherwise.
+( printf '%%%% ls-R -- filename database for kpathsea; do not change this line.\n%%%% Run mktexlsr to regenerate.\n'
   cd staging/texmf-dist && find . -mindepth 1 | sed 's|^\./||' | LC_ALL=C sort \
   | awk -F/ '{ d="./"; for (i=1;i<NF;i++) d=d $i "/"; sub("/$", "", d); if (d!=p) { print d ":"; p=d } print $NF }'
 ) > staging/texmf-dist/ls-R

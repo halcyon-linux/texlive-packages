@@ -314,11 +314,21 @@ done
 # upstream scripts/wrappers carry pre-usrmerge shebangs; normalize like the
 # data groups do so rpm emits resolvable file dependencies
 find staging/bin -type f -exec sed -i '1s|^#!/bin/|#!/usr/bin/|' {} + 2>/dev/null || true
+# the TeXLive perl modules (TLUtils.pm & co.) live in the texlive.infra
+# DATA package's tlpkg/ — the platform tarballs only carry bin/. Without
+# them the fmtutil/updmap/tlmgr wrappers abort on `use TeXLive::TLUtils`.
+wget -q --retry-connrefused --waitretry=5 --tries=5 \
+    -O raw/texlive.infra.tar.xz \
+    "%{_tl_archive_url}/archive/texlive.infra.tar.xz"
+mkdir -p raw/texlive.infra staging/tlpkg
+tar -xJf raw/texlive.infra.tar.xz -C raw/texlive.infra
+if [ -d raw/texlive.infra/tlpkg ]; then
+    cp -a raw/texlive.infra/tlpkg/. staging/tlpkg/
+fi
 # the repository tlpdb tlmgr needs
 wget -q --retry-connrefused --waitretry=5 --tries=5 \
     -O raw/texlive.tlpdb.xz \
     "%{_tl_archive_url}/tlpkg/texlive.tlpdb.xz"
-mkdir -p staging/tlpkg
 xz -dc raw/texlive.tlpdb.xz > staging/tlpkg/texlive.tlpdb
 # pin tlmgr to this snapshot's repository (the archive URL is immutable)
 mkdir -p staging/texmf-config/tlmgr
