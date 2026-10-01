@@ -41,23 +41,285 @@ binary location alone. Requires texlive-basic (the core data).
 
 %build
 mkdir -p raw
-wget -q --retry-connrefused --waitretry=5 --tries=5 \
-    -O raw/x86_64-linux.tar.xz \
-    "%{_tl_archive_url}/archive/x86_64-linux.tar.xz"
+cat > members.txt <<'EOF'
+a2ping.x86_64-linux
+accfonts.x86_64-linux
+adhocfilelist.x86_64-linux
+afm2pl.x86_64-linux
+albatross.x86_64-linux
+aleph.x86_64-linux
+amstex.x86_64-linux
+aomart.x86_64-linux
+arara.x86_64-linux
+asymptote.x86_64-linux
+attachfile2.x86_64-linux
+authorindex.x86_64-linux
+autosp.x86_64-linux
+axodraw2.x86_64-linux
+bib2gls.x86_64-linux
+bibcop.x86_64-linux
+biber-ms.x86_64-linux
+biber.x86_64-linux
+bibexport.x86_64-linux
+bibtex.x86_64-linux
+bibtex8.x86_64-linux
+bibtexperllibs.x86_64-linux
+bibtexu.x86_64-linux
+bookshelf.x86_64-linux
+bundledoc.x86_64-linux
+cachepic.x86_64-linux
+checkcites.x86_64-linux
+checklistings.x86_64-linux
+chklref.x86_64-linux
+chktex.x86_64-linux
+citation-style-language.x86_64-linux
+cjk-gs-integrate.x86_64-linux
+cjkutils.x86_64-linux
+clojure-pamphlet.x86_64-linux
+cluttex.x86_64-linux
+context-legacy.x86_64-linux
+context.x86_64-linux
+convbkmk.x86_64-linux
+crossrefware.x86_64-linux
+csplain.x86_64-linux
+ctan-o-mat.x86_64-linux
+ctanbib.x86_64-linux
+ctanify.x86_64-linux
+ctanupload.x86_64-linux
+ctie.x86_64-linux
+cweb.x86_64-linux
+cyrillic-bin.x86_64-linux
+de-macro.x86_64-linux
+detex.x86_64-linux
+diadia.x86_64-linux
+digestif.x86_64-linux
+dosepsbin.x86_64-linux
+dtl.x86_64-linux
+dtxgen.x86_64-linux
+dvi2tty.x86_64-linux
+dviasm.x86_64-linux
+dvicopy.x86_64-linux
+dvidvi.x86_64-linux
+dviinfox.x86_64-linux
+dviljk.x86_64-linux
+dviout-util.x86_64-linux
+dvipdfmx.x86_64-linux
+dvipng.x86_64-linux
+dvipos.x86_64-linux
+dvips.x86_64-linux
+dvisvgm.x86_64-linux
+easydtx.x86_64-linux
+ebong.x86_64-linux
+eolang.x86_64-linux
+eplain.x86_64-linux
+epspdf.x86_64-linux
+epstopdf.x86_64-linux
+exceltex.x86_64-linux
+expltools.x86_64-linux
+extractbb.x86_64-linux
+fig4latex.x86_64-linux
+findhyph.x86_64-linux
+fontinst.x86_64-linux
+fontools.x86_64-linux
+fontware.x86_64-linux
+fragmaster.x86_64-linux
+getmap.x86_64-linux
+git-latexdiff.x86_64-linux
+glossaries.x86_64-linux
+gregoriotex.x86_64-linux
+gsftopk.x86_64-linux
+hitex.x86_64-linux
+hyperxmp.x86_64-linux
+installfont.x86_64-linux
+jadetex.x86_64-linux
+jfmutil.x86_64-linux
+ketcindy.x86_64-linux
+kotex-utils.x86_64-linux
+kpathsea.x86_64-linux
+l3build.x86_64-linux
+l3sys-query.x86_64-linux
+lacheck.x86_64-linux
+latex-bin-dev.x86_64-linux
+latex-bin.x86_64-linux
+latex-git-log.x86_64-linux
+latex-papersize.x86_64-linux
+latex2man.x86_64-linux
+latex2nemeth.x86_64-linux
+latexdiff.x86_64-linux
+latexfileversion.x86_64-linux
+latexindent.x86_64-linux
+latexmk.x86_64-linux
+latexpand.x86_64-linux
+lcdftypetools.x86_64-linux
+light-latex-make.x86_64-linux
+lilyglyphs.x86_64-linux
+listbib.x86_64-linux
+listings-ext.x86_64-linux
+lollipop.x86_64-linux
+ltxfileinfo.x86_64-linux
+ltximg.x86_64-linux
+luafindfont.x86_64-linux
+luahbtex.x86_64-linux
+luajittex.x86_64-linux
+luaotfload.x86_64-linux
+luatex.x86_64-linux
+lwarp.x86_64-linux
+m-tx.x86_64-linux
+make-paper-tarball.x86_64-linux
+make4ht.x86_64-linux
+makedtx.x86_64-linux
+makeindex.x86_64-linux
+markdown.x86_64-linux
+match_parens.x86_64-linux
+mathspic.x86_64-linux
+memoize.x86_64-linux
+metafont.x86_64-linux
+metapost.x86_64-linux
+mex.x86_64-linux
+mf2pt1.x86_64-linux
+mflua.x86_64-linux
+mfware.x86_64-linux
+minted.x86_64-linux
+mkgrkindex.x86_64-linux
+mkjobtexmf.x86_64-linux
+mkpic.x86_64-linux
+mltex.x86_64-linux
+mptopdf.x86_64-linux
+multibibliography.x86_64-linux
+musixtex.x86_64-linux
+musixtnt.x86_64-linux
+omegaware.x86_64-linux
+optex.x86_64-linux
+optexcount.x86_64-linux
+pagelayout.x86_64-linux
+patgen.x86_64-linux
+pax.x86_64-linux
+pdfbook2.x86_64-linux
+pdfcrop.x86_64-linux
+pdfjam.x86_64-linux
+pdflatexpicscale.x86_64-linux
+pdftex-quiet.x86_64-linux
+pdftex.x86_64-linux
+pdftosrc.x86_64-linux
+pdfxup.x86_64-linux
+pedigree-perl.x86_64-linux
+perltex.x86_64-linux
+petri-nets.x86_64-linux
+pfarrei.x86_64-linux
+pkfix-helper.x86_64-linux
+pkfix.x86_64-linux
+platex.x86_64-linux
+pmx.x86_64-linux
+pmxchords.x86_64-linux
+ppmcheckpdf.x86_64-linux
+ps2eps.x86_64-linux
+ps2pk.x86_64-linux
+pst-pdf.x86_64-linux
+pst2pdf.x86_64-linux
+psutils.x86_64-linux
+ptex-fontmaps.x86_64-linux
+ptex.x86_64-linux
+ptex2pdf.x86_64-linux
+purifyeps.x86_64-linux
+pygmentex.x86_64-linux
+pythontex.x86_64-linux
+rubik.x86_64-linux
+runtexfile.x86_64-linux
+runtexshebang.x86_64-linux
+seetexk.x86_64-linux
+show-pdf-tags.x86_64-linux
+spix.x86_64-linux
+splitindex.x86_64-linux
+sqltex.x86_64-linux
+srcredact.x86_64-linux
+sty2dtx.x86_64-linux
+svn-multi.x86_64-linux
+synctex.x86_64-linux
+t1utils.x86_64-linux
+tex.x86_64-linux
+tex4ebook.x86_64-linux
+tex4ht.x86_64-linux
+texaccents.x86_64-linux
+texblend.x86_64-linux
+texchanges.x86_64-linux
+texcount.x86_64-linux
+texdef.x86_64-linux
+texdiff.x86_64-linux
+texdirflatten.x86_64-linux
+texdoc.x86_64-linux
+texdoctk.x86_64-linux
+texfindpkg.x86_64-linux
+texfot.x86_64-linux
+texlive-scripts-extra.x86_64-linux
+texlive-scripts.x86_64-linux
+texlive.infra.x86_64-linux
+texliveonfly.x86_64-linux
+texloganalyser.x86_64-linux
+texlogfilter.x86_64-linux
+texlogsieve.x86_64-linux
+texosquery.x86_64-linux
+texplate.x86_64-linux
+texsis.x86_64-linux
+texware.x86_64-linux
+thumbpdf.x86_64-linux
+tie.x86_64-linux
+tikztosvg.x86_64-linux
+tlcockpit.x86_64-linux
+tlshell.x86_64-linux
+tpic2pdftex.x86_64-linux
+ttfutils.x86_64-linux
+typeoutfileinfo.x86_64-linux
+typog.x86_64-linux
+ulqda.x86_64-linux
+uplatex.x86_64-linux
+upmendex.x86_64-linux
+uptex.x86_64-linux
+urlbst.x86_64-linux
+velthuis.x86_64-linux
+vlna.x86_64-linux
+vpe.x86_64-linux
+web.x86_64-linux
+webquiz.x86_64-linux
+wordcount.x86_64-linux
+xdvi.x86_64-linux
+xdvipsk.x86_64-linux
+xelatex-dev.x86_64-linux
+xetex.x86_64-linux
+xindex.x86_64-linux
+xindy.x86_64-linux
+xml2pmx.x86_64-linux
+xmltex.x86_64-linux
+xpdfopen.x86_64-linux
+yplan.x86_64-linux
+EOF
+# the wire stores platform binaries as per-package tarballs
+# (<pkg>.x86_64-linux.tar.xz — what install-tl fetches one by one)
+xargs -a members.txt -P 8 -I PKG wget -q --retry-connrefused \
+    --waitretry=5 --tries=5 -O raw/PKG.tar.xz \
+    "%{_tl_archive_url}/archive/PKG.tar.xz"
+# most tarballs carry bin/x86_64-linux pre-rooted (non-reloc shape); a
+# root-level file dump is normalized into the same staging tree
+mkdir -p staging/bin/x86_64-linux
+for t in raw/*.tar.xz; do
+    d="raw/$(basename "$t" .tar.xz)"
+    mkdir -p "$d"
+    tar -xJf "$t" -C "$d"
+    if [ -d "$d/bin/x86_64-linux" ]; then
+        cp -a "$d/bin/x86_64-linux/." staging/bin/x86_64-linux/
+    else
+        find "$d" -mindepth 1 -maxdepth 1 -type f \
+            -exec cp -a -t staging/bin/x86_64-linux/ {} +
+    fi
+done
+# upstream scripts/wrappers carry pre-usrmerge shebangs; normalize like the
+# data groups do so rpm emits resolvable file dependencies
+find staging/bin -type f -exec sed -i '1s|^#!/bin/|#!/usr/bin/|' {} + 2>/dev/null || true
+# the repository tlpdb tlmgr needs
 wget -q --retry-connrefused --waitretry=5 --tries=5 \
     -O raw/texlive.tlpdb.xz \
     "%{_tl_archive_url}/tlpkg/texlive.tlpdb.xz"
-tar -xJf raw/x86_64-linux.tar.xz -C raw
-xz -dc raw/texlive.tlpdb.xz > raw/texlive.tlpdb
-# the platform bundle normally unpacks bin/x86_64-linux/ pre-rooted
-# (the non-reloc wire shape); tolerate a root-level binary dump too
-mkdir -p staging/bin/x86_64-linux staging/tlpkg
-if [ -d raw/bin/x86_64-linux ]; then
-    cp -a raw/bin/x86_64-linux/. staging/bin/x86_64-linux/
-else
-    cp -a raw/. staging/bin/x86_64-linux/
-fi
-cp -a raw/texlive.tlpdb staging/tlpkg/texlive.tlpdb
+mkdir -p staging/tlpkg
+xz -dc raw/texlive.tlpdb.xz > staging/tlpkg/texlive.tlpdb
 # pin tlmgr to this snapshot's repository (the archive URL is immutable)
 mkdir -p staging/texmf-config/tlmgr
 printf 'repository = %s\nverify-repo = none\n' "%{_tl_archive_url}" \

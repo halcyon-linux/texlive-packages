@@ -244,7 +244,19 @@ def main() -> None:
     if pruned:
         print(f"trim: pruned {len(pruned)} groups, {len(groups)} survive")
 
-    specs = emit_groups.emit_all(groups, snapshot, args.archive_root)
+    # the tlpdb references platform binaries as <pkg>.ARCH depend tokens
+    # (no stanzas of their own); those are exactly the binary tarballs the
+    # tlmgr wire layout serves at archive/<pkg>.<platform>.tar.xz — the set
+    # texlive-bin's engine bundle is built from
+    platform_members = sorted(
+        n for n in packages if n.endswith(".x86_64-linux")
+    )
+    if not platform_members:
+        die("tlpdb contains no x86_64-linux binary packages — layout changed?")
+
+    specs = emit_groups.emit_all(
+        groups, snapshot, args.archive_root, platform_members
+    )
     total_files = sum(len(e["runfiles"]) for e in groups.values())
     total_members = sum(len(e["members"]) for e in groups.values())
     print(

@@ -210,23 +210,37 @@ binary location alone. Requires texlive-basic (the core data).
 
 %build
 mkdir -p raw
-wget -q --retry-connrefused --waitretry=5 --tries=5 \\
-    -O raw/x86_64-linux.tar.xz \\
-    "%{{_tl_archive_url}}/archive/x86_64-linux.tar.xz"
+cat > members.txt <<'EOF'
+{members}
+EOF
+# the wire stores platform binaries as per-package tarballs
+# (<pkg>.x86_64-linux.tar.xz — what install-tl fetches one by one)
+xargs -a members.txt -P 8 -I PKG wget -q --retry-connrefused \\
+    --waitretry=5 --tries=5 -O raw/PKG.tar.xz \\
+    "%{{_tl_archive_url}}/archive/PKG.tar.xz"
+# most tarballs carry bin/x86_64-linux pre-rooted (non-reloc shape); a
+# root-level file dump is normalized into the same staging tree
+mkdir -p staging/bin/x86_64-linux
+for t in raw/*.tar.xz; do
+    d="raw/$(basename "$t" .tar.xz)"
+    mkdir -p "$d"
+    tar -xJf "$t" -C "$d"
+    if [ -d "$d/bin/x86_64-linux" ]; then
+        cp -a "$d/bin/x86_64-linux/." staging/bin/x86_64-linux/
+    else
+        find "$d" -mindepth 1 -maxdepth 1 -type f \\
+            -exec cp -a -t staging/bin/x86_64-linux/ {{}} +
+    fi
+done
+# upstream scripts/wrappers carry pre-usrmerge shebangs; normalize like the
+# data groups do so rpm emits resolvable file dependencies
+find staging/bin -type f -exec sed -i '1s|^#!/bin/|#!/usr/bin/|' {{}} + 2>/dev/null || true
+# the repository tlpdb tlmgr needs
 wget -q --retry-connrefused --waitretry=5 --tries=5 \\
     -O raw/texlive.tlpdb.xz \\
     "%{{_tl_archive_url}}/tlpkg/texlive.tlpdb.xz"
-tar -xJf raw/x86_64-linux.tar.xz -C raw
-xz -dc raw/texlive.tlpdb.xz > raw/texlive.tlpdb
-# the platform bundle normally unpacks bin/x86_64-linux/ pre-rooted
-# (the non-reloc wire shape); tolerate a root-level binary dump too
-mkdir -p staging/bin/x86_64-linux staging/tlpkg
-if [ -d raw/bin/x86_64-linux ]; then
-    cp -a raw/bin/x86_64-linux/. staging/bin/x86_64-linux/
-else
-    cp -a raw/. staging/bin/x86_64-linux/
-fi
-cp -a raw/texlive.tlpdb staging/tlpkg/texlive.tlpdb
+mkdir -p staging/tlpkg
+xz -dc raw/texlive.tlpdb.xz > staging/tlpkg/texlive.tlpdb
 # pin tlmgr to this snapshot's repository (the archive URL is immutable)
 mkdir -p staging/texmf-config/tlmgr
 printf 'repository = %s\\nverify-repo = none\\n' "%{{_tl_archive_url}}" \\
@@ -337,8 +351,11 @@ def render_meta_spec(groups: dict[str, dict], snapshot: str) -> str:
     )
 
 
-def render_bin_spec(snapshot: str, archive_root: str) -> str:
+def render_bin_spec(
+    members: list[str], snapshot: str, archive_root: str
+) -> str:
     return BIN_SPEC.format(
+        members="\n".join(members),
         snapshot=snapshot,
         archive_root=archive_root,
         ys=snapshot[:4],
@@ -350,11 +367,15 @@ def render_bin_spec(snapshot: str, archive_root: str) -> str:
 
 
 def emit_all(
-    groups: dict[str, dict], snapshot: str, archive_root: str
+    groups: dict[str, dict],
+    snapshot: str,
+    archive_root: str,
+    platform_members: list[str] | None = None,
 ) -> dict[str, str]:
     """Render every group + texlive-bin + meta spec. Returns
     {name: spec_text} — writing is the caller's job (the roll driver
-    writes only changed files)."""
+    writes only changed files). platform_members are the tlpdb's
+    <pkg>.x86_64-linux binary-package names fetched by texlive-bin."""
     out: dict[str, str] = {}
     empty = []
     for group, entry in sorted(groups.items()):
@@ -367,6 +388,8 @@ def emit_all(
             f"{', '.join(empty)} — would build empty RPMs; investigate the "
             "tlpdb before rolling."
         )
-    out["texlive-bin"] = render_bin_spec(snapshot, archive_root)
+    out["texlive-bin"] = render_bin_spec(
+        platform_members or [], snapshot, archive_root
+    )
     out["texlive-meta"] = render_meta_spec(groups, snapshot)
     return out
