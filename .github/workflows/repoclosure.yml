@@ -198,38 +198,19 @@ jobs:
               for p in $COPR_PROJECTS; do
                 grp=${p#*/}
                 echo "::group::repoclosure fc$rv ($grp) attempt $attempt"
-                # Per-repo mode: the texlive group repos pair Fedora's engines
-                # (texlive-luatex, texlive-xetex — SAME package names at a
-                # higher epoch, carrying the real binaries) with the epoch-0
-                # data groups. --newest/--best prune the pool per name and
-                # would drop one half of that pair (either the engine needed
-                # for /usr/bin/* file deps or the data copy the snapshot pins
-                # need), so the texlive check runs plain and without the
-                # shadow exclusion — the exact-EQ snapshot pins are the skew
-                # guard there.
+                # Per-repo mode: plain repoclosure against the Copr repo on
+                # top of the Fedora pool. The texlive repo is self-sufficient
+                # since texlive-bin (the engine bundle) landed: the groups'
+                # /usr/bin/* file deps resolve from the Copr itself, so no
+                # waivers here. --newest/--best would prune the exact-EQ
+                # snapshot pins for the other repos; the texlive check runs
+                # plain (the exact-EQ pins are the skew guard there).
                 args=(--check "copr:copr.fedorainfracloud.org:aahsnr-work:$grp")
                 if [ "$grp" != texlive-packages ]; then
                   args+=(--setopt "fedora.excludepkgs=$SHADOW" --setopt "updates.excludepkgs=$SHADOW" --newest)
                 fi
-                # Known engine-collision waiver: Fedora's texlive-luatex /
-                # texlive-xetex (epoch 12, the real engines) own
-                # /usr/bin/luatex and /usr/bin/xetex, but the same-name
-                # snapshot-pinned Copr data groups shadow them for consumers
-                # (priority=1, one package per name). The engines belong to
-                # the base image; the check waives exactly those two file
-                # deps and still fails on anything else.
-                check_leg() {
-                  local out rc bad
-                  out=$(dnf -q --releasever=$rv repoclosure "$@" 2>&1); rc=$?
-                  printf '%s\n' "$out"
-                  if [ "$rc" -ne 0 ]; then
-                    bad=$(printf '%s\n' "$out" | grep -E '^ +/usr/' | grep -vcE '^ +/usr/bin/(luatex|xetex)$')
-                    [ "$bad" -eq 0 ] && rc=0
-                  fi
-                  return $rc
-                }
-                if check_leg "${args[@]}" \
-                  && check_leg "${args[@]}" --best; then
+                if dnf -q --releasever=$rv repoclosure "${args[@]}" 2>&1 \
+                  && dnf -q --releasever=$rv repoclosure "${args[@]}" --best 2>&1; then
                   echo "fc$rv $grp: closed"
                 else
                   echo "fc$rv $grp: UNRESOLVED DEPENDENCIES"

@@ -1,6 +1,9 @@
 # texlive-packages
 
-TeX Live rolling groups (tlnet snapshots), without docs — Fedora 44 (+45) RPMs built on
+TeX Live rolling groups (tlnet snapshots), without docs — plus the matching
+engine bundle (`texlive-bin`: upstream's prebuilt x86_64-linux binaries from
+the same snapshot, self-contained under `/usr/lib/texlive/<year>/`).
+Fedora 44 (+45) RPMs built on
 [Copr](https://copr.fedorainfracloud.org/coprs/aahsnr-work/texlive-packages/).
 
 ```
@@ -24,7 +27,7 @@ applications · fonts · texlive-packages · linux-p03.
   the published Copr repo against Fedora 44/45 (+ Terra and the
   lionheartp bootstrap repo).
 - `texlive-update.yml` — the biweekly roll (Wednesdays on even ISO weeks):
-  rewrites all 19 specs from the newest tlnet snapshot and pushes, which
+  rewrites all 20 specs from the newest tlnet snapshot and pushes, which
   cascades the batch-5 rebuild. Manual dispatch forces a snapshot.
 
 

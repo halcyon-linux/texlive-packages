@@ -8,7 +8,8 @@ Steps:
   2. fetch + decompress that snapshot's texlive.tlpdb (the .xz form,
      ~6 MB)
   3. partition scheme-full into the Arch-style groups (splitter.partition,
-     no docs) and render one spec per group + texlive-meta (emit_groups)
+     no docs) and render one spec per group + texlive-bin + texlive-meta
+     (emit_groups)
   4. write only specs whose bytes changed; append batch-5 registry
      entries for any group the registry does not know yet
 
@@ -289,7 +290,9 @@ def main() -> None:
     if changed:
         print(f"wrote {len(changed)} specs: {', '.join(sorted(changed))}")
     registry_sync(
-        sorted(groups.keys()) + ["texlive-meta"], registry, args.dry_run
+        sorted(groups.keys()) + ["texlive-bin", "texlive-meta"],
+        registry,
+        args.dry_run,
     )
     if not changed:
         print("unchanged: every spec already at this snapshot")

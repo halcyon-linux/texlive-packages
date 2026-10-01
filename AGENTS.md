@@ -13,8 +13,12 @@ dnf copr enable aahsnr-work/texlive-packages fedora-44
 ```
 
 The Arch-style group split of TeX Live scheme-full: the texmf-dist data
-tree only, no docs, no binaries — the halcyon image pairs Fedora's texlive
-engines with this tree.
+tree only, no docs — plus `texlive-bin`, upstream's prebuilt x86_64-linux
+engine bundle from the same dated snapshot. Groups and engines install
+under one self-contained `/usr/lib/texlive/<year>/` root that kpathsea
+resolves relative to the binary (SELFAUTOPARENT), so nothing here
+interacts with Fedora's texlive packaging (different paths, different
+package names).
 
 **Markdown discipline**: do NOT read, use, or act on `TODO.md`, `notes/` or
 any other markdown file unless the user explicitly instructs you to utilize
@@ -38,19 +42,24 @@ mock -r /tmp/copr.cfg <srpm>
 
 ## Non-obvious rules
 
-- **All 19 specs are GENERATED** (18 `texlive-<group>` collection groups +
-  `texlive-meta`) — rewritten wholesale per tlnet snapshot by the biweekly
-  roll (`.github/workflows/texlive-update.yml`, Wednesdays 04:17 UTC on
-  even ISO weeks; manual dispatch always) running
+- **All 20 specs are GENERATED** (18 `texlive-<group>` collection groups +
+  `texlive-bin` + `texlive-meta`) — rewritten wholesale per tlnet snapshot
+  by the biweekly roll (`.github/workflows/texlive-update.yml`, Wednesdays
+  04:17 UTC on even ISO weeks; manual dispatch always) running
   `tools/texlive-splitter/roll.py` against the newest
   `texlive.info/tlnet-archive` daily snapshot. **Never hand-edit them.**
   They carry no `[pkg.updates]` tables and are never swept by update.yml.
 - Group specs have **no URL `Source` entries** — their `%build` wgets each
   member tarball from the dated snapshot (`wget` is a BuildRequire; the
   network is on in Copr builds). spectool fetches nothing for them.
+  `texlive-bin` fetches `archive/x86_64-linux.tar.xz` + `tlpkg/texlive.tlpdb.xz`
+  from the same snapshot the same way.
 - Inter-group Requires are version-pinned to the snapshot so dnf keeps all
   installed groups on one snapshot; `texlive-meta` derives its Requires
-  from the surviving groups.
+  from the surviving groups and pins `texlive-bin` too; `texlive-bin`
+  pins `texlive-basic` (its data floor). Everything installs under
+  `/usr/lib/texlive/<year>/` — the `<year>` and the tree layout come from
+  the `%_tl_root` macro in the generated specs.
 - **`EXCLUDED_GROUPS` in roll.py** keeps the trimmed groups (the language
   packs, fontsextra, games, music, context) from ever being re-added by a
   roll. Extend that frozenset, never the spec set, to drop more.

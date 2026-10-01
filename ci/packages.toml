@@ -75,6 +75,10 @@ batch = 5
 [texlive-meta]
 batch = 5
 
-# VPN clients + the Proton dependency chain (batch 0, vendor rewraps:
-# upstream ships self-contained installers / RPMs — the sanctioned rewrap
-# path; versioned by the custom feeds below).
+# texlive rolling groups (batch 5): generated specs owned by the
+# biweekly texlive roll (.github/workflows/texlive-update.yml);
+# never swept by the Monday update.yml — no updates tables, the
+# roll rewrites the specs wholesale.
+
+[texlive-bin]
+batch = 5
