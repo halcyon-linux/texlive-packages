@@ -15,6 +15,14 @@
 # the second step adds --best (stricter: prefers the best candidate across
 # repos instead of failing over).
 #
+# The same job also enforces this repo's scope: the chroot's source packages
+# must be exactly what pkgs/ builds. priority=1 means anything else — a
+# leftover SRPM — shadows the real package for every consumer, and closure
+# can never flag it, because a stale package resolves just as well as a fresh
+# one. That guard runs before the dependency check, which then runs
+# regardless, so hygiene and dependency failures each show up on their own
+# instead of one hiding the other.
+#
 # Two ways this check can sample a half-published repo, both handled below
 # instead of by blind retries:
 #   1. A cascade publishes builds one by one and Copr regenerates the repo
@@ -92,6 +100,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Install the repo drop-in (this project's + Terra + lionheartp)
+        id: dropin
         run: |
           set -eu
           # this project's consumer drop-in lives in repo/ — install it so
@@ -139,7 +148,46 @@ jobs:
           chmod 600 ~/.config/copr
       - name: Install copr-cli
         run: dnf -qy install copr-cli
+      - name: Scope guard (published source packages == pkgs/)
+        # Deliberately last before the check: a failing step skips its
+        # successors, and the closure step needs python3 for its in-flight
+        # probe and copr-cli for the forced regen — both arrive with the
+        # copr-cli install above (observed in base-pkgs run 37087454880).
+        run: |
+          set -eu
+          # priority=1 in the drop-in ships every name this project publishes
+          # to consumers over Fedora, Terra and lionheartp — so a source
+          # package landing outside pkgs/ is invisible to the closure check
+          # (a stale copy resolves perfectly well) while shadowing the real
+          # one for every consumer. base-pkgs shipped 86 undeclared source
+          # packages this way (fedora-copr/copr#4539); these chroots have
+          # matched pkgs/ exactly and must keep doing so.
+          rc=0
+          for rv in 44 45; do
+            published="$(dnf -q --releasever=$rv repoquery \
+              --arch src \
+              --repoid="copr:copr.fedorainfracloud.org:aahsnr-work:texlive-packages" \
+              --qf '%{name}\n' | sort -u)"
+            if [ -z "$published" ]; then
+              echo "::error::fc$rv: no source packages readable in this project's chroot"
+              rc=1
+              continue
+            fi
+            foreign="$(comm -23 <(printf '%s\n' "$published") \
+                       <(find pkgs -mindepth 1 -maxdepth 1 -printf '%f\n' | sort))"
+            if [ -n "$foreign" ]; then
+              echo "::error::fc$rv publishes source packages that are not in pkgs/: $(printf '%s\n' "$foreign" | paste -sd' ' -)"
+              rc=1
+            else
+              echo "fc$rv: source packages == pkgs/ ($(printf '%s\n' "$published" | wc -l) packages)"
+            fi
+          done
+          exit $rc
       - name: Repoclosure (newest, then newest+best; regenerate-and-retry on failure)
+        # the scope guard must not hide a real dependency break: run the
+        # closure check whenever the drop-in installed, hygiene or not, so
+        # one job reports both failures independently
+        if: ${{ !cancelled() && steps.dropin.outcome == 'success' }}
         env:
           GH_TOKEN: ${{ github.token }}
           COPR_PROJECTS: "aahsnr-work/texlive-packages"
@@ -177,16 +225,15 @@ jobs:
             # post-cascade state before judging it
             for p in $COPR_PROJECTS; do copr-cli regenerate-repos "$p"; done
           fi
-          # The Copr drop-ins are priority=1 and shadow Fedora for every name
-          # they build. dnf5's --newest/--best prune the pool to the newest
-          # package per name BEFORE matching, so a same-name Fedora package
-          # with a higher epoch (Fedora 44's texlive-latex/context/pstricks
-          # are epoch 12) shadows the epoch-0 Copr providers and turns their
-          # inter-group version pins into false unresolved deps. A consumer
-          # never sees this: priority=1 wins, and an epoch-0 pin can only
-          # match an epoch-0 provider anyway. Mirror that consumer truth by
-          # excluding every Copr-shadowed name from the Fedora repos here.
-          SHADOW="$(copr-cli list-package-names "aahsnr-work/texlive-packages" | paste -sd, -)"
+          # The drop-in's priority=1 picks one winner per name over Fedora,
+          # Terra and lionheartp, but dnf5's --newest/--best prune the pool to
+          # the newest package per name BEFORE matching and never look at that
+          # priority: a same-name copy elsewhere (a higher epoch in Fedora, a
+          # newer build in lionheartp) is kept instead of this repo's, and the
+          # exact-EQ pins within this repo then read as unresolved. A consumer
+          # never sees that, so hand repoclosure the pool a consumer gets:
+          # exclude every name this project publishes from every other
+          # enabled repo.
           attempt=0; max=6
           while :; do
             attempt=$((attempt+1))
@@ -198,17 +245,26 @@ jobs:
               for p in $COPR_PROJECTS; do
                 grp=${p#*/}
                 echo "::group::repoclosure fc$rv ($grp) attempt $attempt"
-                # Per-repo mode: plain repoclosure against the Copr repo on
-                # top of the Fedora pool. The texlive repo is self-sufficient
-                # since texlive-bin (the engine bundle) landed: the groups'
-                # /usr/bin/* file deps resolve from the Copr itself, so no
-                # waivers here. --newest/--best would prune the exact-EQ
-                # snapshot pins for the other repos; the texlive check runs
-                # plain (the exact-EQ pins are the skew guard there).
-                args=(--check "copr:copr.fedorainfracloud.org:aahsnr-work:$grp")
-                if [ "$grp" != texlive-packages ]; then
-                  args+=(--setopt "fedora.excludepkgs=$SHADOW" --setopt "updates.excludepkgs=$SHADOW" --newest)
+                # The shadow set comes from the served repodata of this chroot,
+                # not from the project's package list: priority=1 covers every
+                # name PUBLISHED here. Re-read per attempt — a cascade landing
+                # mid-retry adds names. dnf5 prints the queryformat verbatim:
+                # the newline escape is what makes this a list at all, and
+                # without it the names arrive glued into one string that
+                # excludes nothing.
+                shadow="$(dnf -q --releasever=$rv repoquery \
+                  --repoid="copr:copr.fedorainfracloud.org:aahsnr-work:$grp" \
+                  --qf '%{name}\n' | sort -u | paste -sd, -)"
+                if [ -z "$shadow" ]; then
+                  echo "::error::fc$rv: could not read the names published in $grp"
+                  exit 1
                 fi
+                args=(--check "copr:copr.fedorainfracloud.org:aahsnr-work:$grp"
+                      --setopt "fedora.excludepkgs=$shadow"
+                      --setopt "updates.excludepkgs=$shadow"
+                      --setopt "terra.excludepkgs=$shadow"
+                      --setopt "lionheartp.excludepkgs=$shadow"
+                      --newest)
                 if dnf -q --releasever=$rv repoclosure "${args[@]}" 2>&1 \
                   && dnf -q --releasever=$rv repoclosure "${args[@]}" --best 2>&1; then
                   echo "fc$rv $grp: closed"
