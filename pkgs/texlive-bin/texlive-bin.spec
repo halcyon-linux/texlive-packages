@@ -343,6 +343,24 @@ mkdir -p "%{buildroot}%{_tl_root}/bin" \
 cp -a staging/bin/x86_64-linux "%{buildroot}%{_tl_root}/bin/"
 cp -a staging/tlpkg/texlive.tlpdb "%{buildroot}%{_tl_root}/tlpkg/"
 cp -a staging/texmf-config/tlmgr "%{buildroot}%{_tl_root}/texmf-config/"
+# expose the linkable engines in /usr/bin: the data groups' scripts carry
+# engine shebangs, so rpm auto-requires /usr/bin/<engine>, and the consumer
+# drop-in's priority=1 shadows the Fedora packages that would otherwise
+# provide them — without this texlive-pictures cannot satisfy its
+# /usr/bin/luatex dependency from this project at all. The list is by name,
+# not by glob: every other binary in the engine dir is owned by a Fedora
+# package this project does not build (texlive-kpathsea, texlive-pdftex,
+# psutils, asymptote, ...), and shipping it here would file-conflict for
+# anyone who has that package installed. lualatex is the single deliberate
+# exception — Fedora's texlive-luahbtex owns it on updates — kept because
+# this project's texlive-luatex is data-only and can never provide it.
+_TL_BINDIR="biber-ms cjk-gs-integrate context.lua dvilualatex dvilualatex-dev dviluatex dvitomp latex luacsplain luametatex lualatex luatex make-paper-tarball mfplain mpost mtxrun.lua pdflatex r-mpost texchanges-merge texlua texluac tlcockpit tlshell xdvipdfmx xelatex xelatex-dev xelatex-unsafe xetex xetex-unsafe xindy.run"
+mkdir -p "%{buildroot}%{_bindir}"
+: > engine-links.list
+for _tl_exe in $_TL_BINDIR; do
+    ln -s "%{_tl_root}/bin/x86_64-linux/$_tl_exe" "%{buildroot}%{_bindir}/$_tl_exe"
+    printf '/usr/bin/%s\n' "$_tl_exe" >> engine-links.list
+done
 # PATH hook: prepend the engine dir of the newest installed year; kpathsea
 # needs nothing else here (SELFAUTOPARENT does the rest)
 cat > "%{buildroot}%{_sysconfdir}/profile.d/texlive.sh" <<'EOF'
@@ -362,7 +380,7 @@ unset _tl_bin
 EOF
 chmod 0755 "%{buildroot}%{_sysconfdir}/profile.d/texlive.sh"
 
-%files
+%files -f engine-links.list
 %{_tl_root}/bin/
 %{_tl_root}/tlpkg/
 %{_tl_root}/texmf-config/
