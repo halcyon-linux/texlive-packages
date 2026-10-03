@@ -266,7 +266,12 @@ mkdir -p "%{{buildroot}}%{{_tl_root}}/bin" \\
          "%{{buildroot}}%{{_tl_root}}/texmf-config" \\
          "%{{buildroot}}%{{_sysconfdir}}/profile.d"
 cp -a staging/bin/x86_64-linux "%{{buildroot}}%{{_tl_root}}/bin/"
-cp -a staging/tlpkg/texlive.tlpdb "%{{buildroot}}%{{_tl_root}}/tlpkg/"
+# the WHOLE tlpkg ships: not just the tlpdb — fmtutil/updmap/tlmgr abort at
+# startup on `use TeXLive::TLUtils` without the TeXLive/*.pm modules, and a
+# tlpkg holding only the tlpdb is exactly how the image lost every format
+# the day the /usr/bin engine links stopped pulling Fedora's
+# texlive-texlive.infra (the accidental module provider). The dir is +920 K.
+cp -a staging/tlpkg/. "%{{buildroot}}%{{_tl_root}}/tlpkg/"
 cp -a staging/texmf-config/tlmgr "%{{buildroot}}%{{_tl_root}}/texmf-config/"
 # expose the linkable engines in /usr/bin: the data groups' scripts carry
 # engine shebangs, so rpm auto-requires /usr/bin/<engine>, and the consumer
