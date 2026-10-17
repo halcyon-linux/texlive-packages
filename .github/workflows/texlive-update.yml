@@ -1,23 +1,25 @@
 # texlive-update — biweekly rolling TeX Live snapshot (the per-group split).
 #
-# The texlive-<group> packages (39 collection groups + texlive-meta, batch 5)
-# are GENERATED specs owned by this workflow — the Monday update.yml sweep
-# never touches them (no updates tables in the registry). Every two weeks:
+# The 20 texlive packages (18 collection groups + texlive-bin + texlive-meta,
+# batch 5) are GENERATED specs owned by this workflow — the Monday update.yml
+# sweep never touches them (no updates tables in the registry). Every two weeks:
 #
 #   1. tools/texlive-splitter/roll.py probes the newest daily snapshot of the
 #      rolling tlnet archive (texlive.info/tlnet-archive — daily snapshots of
 #      the live TeX Live repository), fetches its texlive.tlpdb and
-#      regenerates all 40 specs from it (scheme-full, no docs).
+#      regenerates all 20 specs from it (scheme-full, no docs).
 #   2. Specs are written only when their bytes change; if the snapshot did
 #      not move, the run is a no-op and nothing is committed.
-#   3. A changed roll is committed and pushed straight to main; the push
-#      makes copr-build.yml rebuild the changed texlive dirs as the batch-5
+#   3. A changed roll is committed and pushed straight to main and then
+#      copr-build.yml is dispatched explicitly (a GITHUB_TOKEN push triggers
+#      no workflows) to rebuild the changed texlive dirs as the batch-5
 #      wave. Copr keeps the last good build per package, so a bad roll
 #      never replaces the published set — revert the roll commit to go back.
 #
 # The output of roll.py is a pure function of the snapshot date (no
-# wall-clock in the rendered specs), which is what makes the commit step
-# safe to run unconditionally after the generator.
+# wall-clock in the rendered specs): that is what lets the commit step re-run
+# the generator instead of rebasing when main raced away (two whole-file spec
+# rewrites would always conflict).
 name: texlive-update
 
 on:
@@ -36,6 +38,7 @@ on:
 
 permissions:
   contents: write
+  actions: write # the final step dispatches copr-build.yml on the rolled commit
 
 concurrency:
   group: texlive-update
@@ -71,7 +74,7 @@ jobs:
           fi
           echo "ISO week $(date +%V) — rolling"
           echo "roll=roll" >> "$GITHUB_OUTPUT"
-      - name: Roll the texlive group specs
+      - name: Roll, commit and push
         # the guard ends only its own step — gate the real work on it
         if: steps.parity.outputs.roll != 'skip'
         run: |
@@ -79,35 +82,38 @@ jobs:
           # word splitting on ROLL_ARGS is intended — it is a flag list
           ROLL_ARGS=""
           if [ -n "${SNAPSHOT}" ]; then ROLL_ARGS="--snapshot ${SNAPSHOT}"; fi
-          # shellcheck disable=SC2086
-          out=$(python3 tools/texlive-splitter/roll.py ${ROLL_ARGS})
-          echo "$out"
-          snapshot=$(sed -n 's/^snapshot: //p' <<<"$out")
-          [ -n "$snapshot" ] || { echo "roll.py printed no snapshot"; exit 1; }
-          echo "TL_SNAPSHOT=${snapshot}" >> "$GITHUB_ENV"
-      - name: Commit the roll
-        if: steps.parity.outputs.roll != 'skip'
-        run: |
-          set -eu
-          if [ -z "$(git status --porcelain -- pkgs/ ci/packages.toml)" ]; then
-            echo "unchanged: every spec already at this snapshot"
-            exit 0
-          fi
-          git add pkgs/ ci/packages.toml
-          git commit -m "texlive: roll to tlnet snapshot ${TL_SNAPSHOT}"
-          # main may have moved since checkout (sweep/manual push race):
-          # rebase and retry instead of failing the roll
+          # roll from the current main tip: a re-run (or a run delayed in the
+          # queue) starts from the SHA the run was created with, which may be
+          # stale
+          git fetch origin main
+          git reset --hard origin/main
           for attempt in 1 2 3; do
-            if git fetch origin main && git rebase origin/main && git push origin HEAD:main; then
+            # shellcheck disable=SC2086
+            out=$(python3 tools/texlive-splitter/roll.py ${ROLL_ARGS})
+            echo "$out"
+            snapshot=$(sed -n 's/^snapshot: //p' <<<"$out")
+            [ -n "$snapshot" ] || { echo "roll.py printed no snapshot"; exit 1; }
+            if [ -z "$(git status --porcelain -- pkgs/ ci/packages.toml)" ]; then
+              echo "unchanged: every spec already at this snapshot"
+              exit 0
+            fi
+            git add pkgs/ ci/packages.toml
+            git commit -m "texlive: roll to tlnet snapshot ${snapshot}"
+            if git push origin HEAD:main; then
+              echo "rolled to ${snapshot}"
               break
             fi
-            git rebase --abort 2>/dev/null || true
             if [ "$attempt" = 3 ]; then
-              echo "push failed after 3 rebase attempts"; exit 1
+              echo "push failed after 3 re-roll attempts"; exit 1
             fi
-            echo "push race (attempt ${attempt}) — rebasing onto origin/main"
+            # main moved since we rolled (sweep/manual push race): rebasing a
+            # whole-file spec rewrite onto another one always conflicts — drop
+            # the commit and regenerate on the new tip instead; the generator
+            # is a pure function of the snapshot, so this cannot conflict
+            echo "push race (attempt ${attempt}) — re-rolling onto origin/main"
+            git fetch origin main
+            git reset --hard origin/main
           done
-          echo "rolled to ${TL_SNAPSHOT}"
           # a GITHUB_TOKEN push does not trigger workflow runs — dispatch the
           # cascade explicitly
           GH_TOKEN="${{ github.token }}" gh workflow run copr-build.yml --ref main
