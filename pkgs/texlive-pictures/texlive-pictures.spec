@@ -341,9 +341,14 @@ xistercian
 xpicture
 xypic
 EOF
-xargs -a members.txt -P 8 -I PKG wget -q --retry-connrefused \
-    --waitretry=5 --tries=5 -O raw/PKG.tar.xz \
-    "%{_tl_archive_url}/archive/PKG.tar.xz"
+xargs -a members.txt -P 8 -I PKG wget -nv --connect-timeout=20 \
+    --read-timeout=60 --waitretry=10 --tries=10 --retry-connrefused \
+    --retry-on-http-error=429,500,502,503 \
+    -O raw/PKG.tar.xz "%{_tl_archive_url}/archive/PKG.tar.xz"
+# wget2 2.2.1 can exit 0 after its retries are exhausted without having
+# written the file — verify every member landed before unpacking
+missing=$(for pkg in $(cat members.txt); do [ -s "raw/$pkg.tar.xz" ] || echo "$pkg"; done)
+[ -z "$missing" ] || { echo "member fetch failed: $missing"; exit 1; }
 for t in raw/*.tar.xz; do tar -xJf "$t" -C raw; done
 # one merged tree. Member tarballs come in two shapes: relocatable ones
 # unpack the texmf SUBDIRS at the root (tex/, fonts/, bibtex/, dvips/, ...

@@ -75,9 +75,14 @@ mkdir -p raw
 cat > members.txt <<'EOF'
 {members}
 EOF
-xargs -a members.txt -P 8 -I PKG wget -q --retry-connrefused \\
-    --waitretry=5 --tries=5 -O raw/PKG.tar.xz \\
-    "%{{_tl_archive_url}}/archive/PKG.tar.xz"
+xargs -a members.txt -P 8 -I PKG wget -nv --connect-timeout=20 \\
+    --read-timeout=60 --waitretry=10 --tries=10 --retry-connrefused \\
+    --retry-on-http-error=429,500,502,503 \\
+    -O raw/PKG.tar.xz "%{{_tl_archive_url}}/archive/PKG.tar.xz"
+# wget2 2.2.1 can exit 0 after its retries are exhausted without having
+# written the file — verify every member landed before unpacking
+missing=$(for pkg in $(cat members.txt); do [ -s "raw/$pkg.tar.xz" ] || echo "$pkg"; done)
+[ -z "$missing" ] || {{ echo "member fetch failed: $missing"; exit 1; }}
 for t in raw/*.tar.xz; do tar -xJf "$t" -C raw; done
 # one merged tree. Member tarballs come in two shapes: relocatable ones
 # unpack the texmf SUBDIRS at the root (tex/, fonts/, bibtex/, dvips/, ...
@@ -219,9 +224,15 @@ cat > members.txt <<'EOF'
 EOF
 # the wire stores platform binaries as per-package tarballs
 # (<pkg>.x86_64-linux.tar.xz — what install-tl fetches one by one)
-xargs -a members.txt -P 8 -I PKG wget -q --retry-connrefused \\
-    --waitretry=5 --tries=5 -O raw/PKG.tar.xz \\
-    "%{{_tl_archive_url}}/archive/PKG.tar.xz"
+xargs -a members.txt -P 8 -I PKG wget -nv --connect-timeout=20 \\
+    --read-timeout=60 --waitretry=10 --tries=10 --retry-connrefused \\
+    --retry-on-http-error=429,500,502,503 \\
+    -O raw/PKG.tar.xz "%{{_tl_archive_url}}/archive/PKG.tar.xz"
+# a member that never landed would ship an engine bundle silently missing
+# its binaries (%files globs the tree), and wget2 2.2.1 can exit 0 after
+# its retries are exhausted without writing the file — so verify them
+missing=$(for pkg in $(cat members.txt); do [ -s "raw/$pkg.tar.xz" ] || echo "$pkg"; done)
+[ -z "$missing" ] || {{ echo "platform tarball fetch failed: $missing"; exit 1; }}
 # most tarballs carry bin/x86_64-linux pre-rooted (non-reloc shape); a
 # root-level file dump is normalized into the same staging tree
 mkdir -p staging/bin/x86_64-linux
@@ -242,7 +253,8 @@ find staging/bin -type f -exec sed -i '1s|^#!/bin/|#!/usr/bin/|' {{}} + 2>/dev/n
 # the TeXLive perl modules (TLUtils.pm & co.) live in the texlive.infra
 # DATA package's tlpkg/ — the platform tarballs only carry bin/. Without
 # them the fmtutil/updmap/tlmgr wrappers abort on `use TeXLive::TLUtils`.
-wget -q --retry-connrefused --waitretry=5 --tries=5 \\
+wget -nv --connect-timeout=20 --read-timeout=60 --waitretry=10 --tries=10 \\
+    --retry-connrefused --retry-on-http-error=429,500,502,503 \\
     -O raw/texlive.infra.tar.xz \\
     "%{{_tl_archive_url}}/archive/texlive.infra.tar.xz"
 mkdir -p raw/texlive.infra staging/tlpkg
@@ -251,7 +263,8 @@ if [ -d raw/texlive.infra/tlpkg ]; then
     cp -a raw/texlive.infra/tlpkg/. staging/tlpkg/
 fi
 # the repository tlpdb tlmgr needs
-wget -q --retry-connrefused --waitretry=5 --tries=5 \\
+wget -nv --connect-timeout=20 --read-timeout=60 --waitretry=10 --tries=10 \\
+    --retry-connrefused --retry-on-http-error=429,500,502,503 \\
     -O raw/texlive.tlpdb.xz \\
     "%{{_tl_archive_url}}/tlpkg/texlive.tlpdb.xz"
 xz -dc raw/texlive.tlpdb.xz > staging/tlpkg/texlive.tlpdb
