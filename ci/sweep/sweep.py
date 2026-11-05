@@ -65,8 +65,12 @@ def load_swept() -> dict[str, tuple[dict, Path, Path]]:
     return swept
 
 
-def sweep_one(name: str, updates: dict, spec_path: Path, base: Path) -> tuple[bool, str, str]:
-    """Sweep one package. Returns (wrote, old_version, new_version)."""
+def sweep_one(
+    name: str, updates: dict, spec_path: Path, base: Path, dry_run: bool = False
+) -> tuple[bool, str, str]:
+    """Sweep one package. Returns (wrote, old_version, new_version); with
+    dry_run the spec is left untouched and `wrote` reports whether it would
+    have been."""
     import custom as custom_feeds
 
     spec = SpecFile(spec_path)
@@ -84,7 +88,7 @@ def sweep_one(name: str, updates: dict, spec_path: Path, base: Path) -> tuple[bo
         fn(spec, base)
     else:
         raise feeds.FeedError(f"unknown feed type {feed!r}")
-    wrote = spec.save()
+    wrote = spec.changed if dry_run else spec.save()
     return wrote, old_version, spec.get_version()
 
 
@@ -110,7 +114,9 @@ def main() -> None:
     for name in names:
         updates, spec_path, base = swept[name]
         try:
-            wrote, old_version, new_version = sweep_one(name, updates, spec_path, base)
+            wrote, old_version, new_version = sweep_one(
+                name, updates, spec_path, base, dry_run=args.dry_run
+            )
         except (feeds.FeedError, SpecError, OSError, ValueError, KeyError,
                 TypeError, subprocess.SubprocessError) as exc:
             # OSError covers urllib errors, ValueError malformed JSON,
@@ -121,7 +127,8 @@ def main() -> None:
             print(f"error: {name}: {exc}", file=sys.stderr)
             continue
         if wrote:
-            print(f"bumped: {name}: {old_version} -> {new_version}")
+            verb = "would bump" if args.dry_run else "bumped"
+            print(f"{verb}: {name}: {old_version} -> {new_version}")
         else:
             print(f"unchanged: {name} ({new_version})")
     raise SystemExit(1 if failed else 0)

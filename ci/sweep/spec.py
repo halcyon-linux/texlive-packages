@@ -66,6 +66,10 @@ class SpecFile:
         reset Release to 1%{?dist} — only when the version really changes.
         Returns whether anything was rewritten."""
         version = version.removeprefix("v")
+        # a hyphen or whitespace is illegal in an rpm Version: (a tag like
+        # 3.5.0-rc1 must fail the feed, not corrupt the spec)
+        if not version or re.search(r"[\s-]", version):
+            raise SpecError(f"{self.path}: refusing invalid version {version!r}")
         if version == self.get_version():
             return False
         text = re.sub(
